@@ -1,0 +1,40 @@
+> Would using 1 dataset be enough ?
+
+This can only be answered retrospectively - as in, if it is enough, you will know that it is enough (because you will have the information you require to answer the questions). I suspect that you will need to examine at least 2 datasets, but it's ultimately an empirical question.
+
+
+
+Oh, I see what you mean now! The "swapping" issue is not with the classifier, but rather with our estimate of its accuracy.
+
+The classifier - because it is unsupervised - has no notion of what the labels mean. In the example, I called them "Cold" and "Flu", to signify that I knew what the classes should actually be (so that this is a "weakly unsupervised" method). It is entirely possible that the classifier correctly identifies the "Cold" instances, but due to our arbitrary labelling, calls them all the "Flu" class, and vice versa (hence the "swapping".
+
+As I discussed in the Evaluation (I) lecture, an honest accounting of "Accuracy" in an unsupervised context accounts for the fact that the assignment of labels by the unsupervised ML mechanism, to classes in the test set, is unclear for an unsupervised classifier.
+Consequently, we can consider all of the possible label-to-class assignments. Then, the highest estimate of the Accuracy based on every possible label-to-class assignment, also turns out to be the fairest estimate of Accuracy! This occurs because we are choosing the label-to-class assignment based on which one was the most common for the instances that we predicted.
+
+Although considering all of the label-to-class assignments sounds complicated, it is usually quite easy to observe via inspecting the confusion matrix, which is why I suggested building one in the Project 1 Intro slides.
+
+
+
+> Are we taking a set of data and randomly assigning a distribution to each instance's class, then using this as training data?
+
+Essentially, yes - although unsupervised NB differs from supervised NB in that we do this iteratively, hopefully improving our estimates of the class distribution each time.
+
+
+
+> If this is the case, is there anywhere I can find out why this would work, or do I need to figure it out myself to complete the question at the end?
+
+This is indeed the thrust of Question 1, although "why" is perhaps a question that can be answered in many different ways.
+To help narrow this down a bit, we are asking you to consider "where": on which data sets does it work, and on which data sets does it not? And consequently, to hypothesise (not exhaustively prove) which properties of these data sets is affecting the behaviour of unsupervised NB.
+
+Let's assume that you can identify some property of the data set that causes unsupervised NB to work/not work. Let's suppose further that you get hired by a business as a data scientist/analyst, to solve some problem that you might like tackle using an unsupervised method. You could begin by checking to see whether the dataset possesses the property that causes unsupervised NB to succeed/fail - and then you would have some useful expectations on whether to begin with/ignore this method, as you begin to tackle the problem.
+Arguably, it is largely irrelevant whether you know "why" the datasets that have this property cause unsupervised NB to succeed/fail. But, if it's any consolation, there is a good chance that identifying the relevant properties here will also suggest an explanation to what is happening.
+
+
+Unsupervised NB uses a random initialisation of class distributions to instances, and then works by iterating the train/predict steps a number of times.
+
+
+
+This is true in the general sense, but not actually based on how we actually do the evaluation (according to the method from the Evaluation I lecture). The main reason is that we don't actually want to consider most predicted class-to-actual class assignments, only the ones that actually occurred commonly among the instances that we had.
+
+To elaborate further: if you have constructed a confusion matrix (of size C x C, for C classes, having instance of each predicted "class" down a column, and instances of each actual class aross a row), then the Accuracy is the sum over the largest value in each column, divided by the total number of instances.
+Obviously, you don't need to explicitly calculate the confusion matrix to do this - for example, you could iterate over the instances where the classifier has predicted some particular class, and count which (true) class occurs most commonly within these instances (and then do the same for the other class(es)). The advantage of outputting the confusion matrix directly is that - on data of this size - it's easy enough to pick the largest value in each column by inspection.
