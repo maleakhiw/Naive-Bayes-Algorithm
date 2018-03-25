@@ -4,7 +4,7 @@ from collections import defaultdict
 
 #PARETO PRINCIPLE
 SPLIT_RATIO = 0.8
-ITERATIONS = 4
+ITERATIONS = 3
 
 DATASET1 = '2018S1-proj1_data/breast-cancer-dos.csv'
 DATASET2 = '2018S1-proj1_data/car-dos.csv'
@@ -104,9 +104,10 @@ def main_unsupervised(data):
     predictedClasses, finalDf = predict_unsupervised(cleanTrain, classes, priorCounts)
     trueClass = dataFrame.iloc[:,-1].tolist()
     confusionMatrix = evaluate_unsupervised(trueClass, predictedClasses, classes)
-    #print(confusionMatrix)
+    print(confusionMatrix)
     sum1 = confusionMatrix.values.sum()
     sum2 = 0
+    confusionMatrix = confusionMatrix.transpose()  #fix accuracy calc
     for c in confusionMatrix.columns: sum2 += confusionMatrix[c].max()
     accuracy = sum2/sum1
 
@@ -286,4 +287,4 @@ def main_q3(data):
 # sample(main_unsupervised, 'accuracy')
 
 
-main_unsupervised(DATASET2)
+print(main_unsupervised(DATASET2))
