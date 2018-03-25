@@ -121,7 +121,7 @@ def main_unsupervised(data):
 
     deltaSum /= finalDf.shape[0]
     # print('iterations', ITERATIONS)
-    #print('delta average Q6', deltaSum)
+    print('delta average Q6', deltaSum)
 
     return accuracy
 
@@ -279,8 +279,11 @@ def main_q3(data):
 
 
 
-sample(main_q3, 'no holdout')
-sample(main_supervised, 'with holdout')
-#sample(main_unsupervised, 'unsupervised delta testing')
+# sample(main_q3, 'no holdout')
+# sample(main_supervised, 'with holdout')
+# sample(main_unsupervised, 'unsupervised delta testing')
 
 # sample(main_unsupervised, 'accuracy')
+
+
+main_unsupervised(DATASET2)
