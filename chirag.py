@@ -119,17 +119,27 @@ def evaluateSup(testSet, predictedClasses):
 
 def trainUnsup(df):
     '''
+    initialise instances with random (non-uniform) class distributions
     '''
-    classList = set(df.iloc[:,-1])
+    classList = set(df.iloc[:,-1])  # extract unique classes
     classCount = len(classList)
-    cleanTrain = df.drop(df.columns[-1], axis=1)
-    N = cleanTrain.shape[0]
-    priorCounts = float()
+    cleanTrain = df.drop(df.columns[-1], axis=1)  # drop class col
+    N = cleanTrain.shape[0]  # instance count
+    priorCounts = float()  #initialise prior
     randoms = []
+
+    # initialise class probabilities as float
+    for c in classList: cleanTrain[c] = float()
+
+    # generate N random probability distributions, while summing for prior
+    # store generated probabilities
 
     for i in range(N):
         randoms.append(randDistGen(classCount))
         priorCounts += randoms[i]
+
+        for idx, c in enumerate(classList):
+            cleanTrain.at[i, c] = randoms[i][idx]
 
     # slide example
     # randoms2 = [[ 0.4,  0.6],
@@ -143,11 +153,6 @@ def trainUnsup(df):
     # print('priorCounts', priorCounts)
     # print('priorProb', priorCounts / N)
 
-    for c in classList: cleanTrain[c] = float()
-
-    for i in range(N):
-        for idx, c in enumerate(classList):
-            cleanTrain.at[i, c] = randoms[i][idx]
 
     #print('INIT\n', cleanTrain)
     return cleanTrain, classList, priorCounts
@@ -333,7 +338,7 @@ def mainUnsup(data):
 
 ###############################################################################
 
-# mainUnsup(DATASET4)
+print(mainUnsup(DATASET4))
 
 # sample(mainQuestion3, 'no holdout')
 # sample(mainSup, 'with holdout')
