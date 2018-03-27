@@ -1,3 +1,8 @@
+# Chirag Rao Sahib      : 836011
+# Maleakhi Agung Wijaya : 784091
+
+###############################################################################
+
 import numpy as np
 import pandas as pd
 from collections import defaultdict
@@ -247,6 +252,7 @@ def evaluateUnsup(trueClass, predictedClasses, classes, flag):
     # calculate unsupervised accuracy
     maxSum = 0
     totalSum = confusionMatrix.values.sum()
+    # sum rows or columns???
     confusionMatrix = confusionMatrix.transpose()  # fix accuracy calc
     for c in confusionMatrix.columns: maxSum += confusionMatrix[c].max()
 
