@@ -10,7 +10,7 @@ DATASET2 = '2018S1-proj1_data/car-dos.csv'
 DATASET3 = '2018S1-proj1_data/hypothyroid-dos.csv'
 DATASET4 = '2018S1-proj1_data/mushroom-dos.csv'
 DATASETS = [DATASET1, DATASET2, DATASET3, DATASET4]
-SAMPLE = '2018S1-proj1_data/sample.csv'  # slide dataset
+SAMPLE = '2018S1-proj1_data/sample.csv'  # example dataset
 
 ###############################################################################
 
@@ -31,11 +31,11 @@ def randDistGen(length):
 
 ###############################################################################
 
-def preprocessSup(dataset):
+def preprocessSup(data):
     '''
     read csv using pandas and partition data as per holdout
     '''
-    dataFrame = pd.read_csv(dataset, header = None)
+    dataFrame = pd.read_csv(data, header = None)
     split = np.random.rand(len(dataFrame)) < SPLIT_RATIO
     train = dataFrame[split]
     test = dataFrame[~split]
@@ -53,30 +53,29 @@ def trainSup(trainSet):
     attribCount = trainSet.shape[1]
     posteriorProb = {}
 
-    # class is not an attribute
-    for attrib in range(attribCount - 1):
-        # generate list of unique attribute values, diregard ?
+    for attrib in range(attribCount - 1):  # class is not an attribute
+        # generate list of unique attribute values and disregard ?
         attribValues = list(trainSet[attrib].unique())
         if ('?' in attribValues): attribValues.remove('?')
 
+        # calculate posterior probabilities
         for c in priorCounts.index:
             for val in attribValues:
-                # calculate posterior probabilities
+                # first filter by class then by attribute value
                 filterClass = trainSet[trainSet.iloc[:,-1] == c]
                 filterClassVal = filterClass[filterClass[attrib] == val]
                 key = createKey([attrib, val, c])
-                # store in dictionary by attribute|value|class
                 posteriorProb[key] = filterClassVal.shape[0] / priorCounts[c]
 
     return priorProb, posteriorProb
 
 ###############################################################################
 
-def predictSup(test, priorProb, posteriorProb):
+def predictSup(testSet, priorProb, posteriorProb):
     '''
     returns predicted class given test data
     '''
-    cleanTest = test.drop(test.columns[-1], axis=1)   # drop classes
+    cleanTest = testSet.drop(testSet.columns[-1], axis=1)  # drop classes
     predictedClasses = []
 
     for i, instance in cleanTest.iterrows():
@@ -132,8 +131,7 @@ def trainUnsup(df):
     for c in classList: cleanTrain[c] = float()
 
     # generate N random probability distributions, while summing for prior
-    # store generated probabilities
-
+    # store generated probabilities in dataframe
     for i in range(N):
         randoms.append(randDistGen(classCount))
         priorCounts += randoms[i]
@@ -152,25 +150,25 @@ def trainUnsup(df):
 
     # print('priorCounts', priorCounts)
     # print('priorProb', priorCounts / N)
-
-
     #print('INIT\n', cleanTrain)
+
     return cleanTrain, classList, priorCounts
 
 ###############################################################################
 
 def predictUnsup(cleanTrain, classes, priorCounts):
     '''
+    returns predicted classes and final class distributions
     '''
+    N = cleanTrain.shape[0]  # instance count
     attribCount = cleanTrain.shape[1] - len(classes)
-    N = cleanTrain.shape[0]
     priorProb = priorCounts / N
 
     for j in range(ITERATIONS):
         posteriorProb = defaultdict(lambda: 0)
 
+        # generate attribute value|class pair probabilities
         for attrib in range(attribCount) :
-
             attribValues = list(cleanTrain[attrib].unique())
             if ('?' in attribValues): attribValues.remove('?')
 
@@ -180,44 +178,42 @@ def predictUnsup(cleanTrain, classes, priorCounts):
                     filterClassVal = cleanTrain[cleanTrain[attrib] == val]
                     posteriorProb[key] += filterClassVal[c].sum() / priorCounts[idx]
 
+        # maximum likelihood estimation of each instance
         for i, instance in cleanTrain.iterrows():
             classSum = 0.0
+
             for idx, c in enumerate(classes):
                 tmpProb = priorProb[idx]
 
                 for attrib, val in enumerate(list(instance)):
                     key = createKey([attrib, val, c])
                     if key in posteriorProb: tmpProb *= posteriorProb[key]
-
                 classSum += tmpProb
                 cleanTrain.at[i, c] = tmpProb
 
-            #normalise
-            for c in classes:
-                cleanTrain.at[i, c] = cleanTrain.at[i, c] / classSum
+            # normalise posterior
+            for c in classes: cleanTrain.at[i, c] /= classSum
 
-        #recalculate prior
+        # recalculate prior
         for idx,c in enumerate(classes): priorCounts[idx] = cleanTrain[c].sum()
-
         priorProb = priorCounts / N
 
     #print(cleanTrain)
 
     predictedClasses = []
-
+    # extract final predictions (most likely class)
     for i, instance in cleanTrain.iterrows():
         currentMax = ['null', 0]
 
         for idx, c in enumerate(classes):
             if instance[c] > currentMax[1]: currentMax = [c, instance[c]]
-
         predictedClasses.append(currentMax[0])
 
     return predictedClasses, cleanTrain
 
 ###############################################################################
 
-def evaluateUnsup(trueClass, predictedClasses, classList, flag):
+def evaluateUnsup(trueClass, predictedClasses, classes, flag):
     '''
     builds a confusion matrix for unsupervised evaluation
     '''
@@ -227,10 +223,9 @@ def evaluateUnsup(trueClass, predictedClasses, classList, flag):
 
     # Create a pandas dataframe actual is the row, predicted is the column
     confusionMatrix = pd.DataFrame()
+    for c in classes: confusionMatrix[c] = [0] * len(classes)
 
-    for c in classList: confusionMatrix[c] = [0] * len(classList)
-
-    confusionMatrix.index = classList  # index by classes
+    confusionMatrix.index = classes  # index by classes
 
     # Calculate the confusion matrix
     for i in range(len(trueClass)):
@@ -240,13 +235,9 @@ def evaluateUnsup(trueClass, predictedClasses, classList, flag):
     predictedCol = []
     actualRow = []
 
-    for string in confusionMatrix.columns:
-        string += " predicted"
-        predictedCol.append(string.title())
-
-    for string in classList:
-        string += " actual"
-        actualRow.append(string.title())
+    for string in classes:
+        predictedCol.append(string + ' (Predicted)')
+        actualRow.append(string + ' (Actual)')
 
     confusionMatrix.columns = predictedCol
     confusionMatrix.index = actualRow
@@ -257,7 +248,6 @@ def evaluateUnsup(trueClass, predictedClasses, classList, flag):
     maxSum = 0
     totalSum = confusionMatrix.values.sum()
     confusionMatrix = confusionMatrix.transpose()  # fix accuracy calc
-
     for c in confusionMatrix.columns: maxSum += confusionMatrix[c].max()
 
     return maxSum / totalSum
@@ -269,7 +259,6 @@ def sample(func, desc):
     runs given function 10 times and takes average of measure
     '''
     RUNS = 10
-
     print(desc)  # description of experiment
 
     for d in DATASETS:
@@ -329,7 +318,7 @@ def mainUnsup(data):
     trueClass = df.iloc[:,-1].tolist()  # extract true classes
     cleanTrain, classes, priorCounts = trainUnsup(df)
     predictedClasses, finalDf = predictUnsup(cleanTrain, classes, priorCounts)
-    accuracyUnsup = evaluateUnsup(trueClass, predictedClasses, classes, False)
+    accuracyUnsup = evaluateUnsup(trueClass, predictedClasses, classes, True)
     deltaAvg = deltaQuestion6(finalDf, predictedClasses)
 
     print('delta average', deltaAvg)
@@ -338,7 +327,7 @@ def mainUnsup(data):
 
 ###############################################################################
 
-print(mainUnsup(DATASET4))
+print(mainUnsup(DATASET3))
 
 # sample(mainQuestion3, 'no holdout')
 # sample(mainSup, 'with holdout')
