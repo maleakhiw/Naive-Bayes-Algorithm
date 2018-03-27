@@ -333,9 +333,10 @@ def mainUnsup(data):
 
 ###############################################################################
 
-print(mainUnsup(DATASET3))
+# print(mainUnsup(DATASET3))
 
 # sample(mainQuestion3, 'no holdout')
-# sample(mainSup, 'with holdout')
+sample(mainSup, 'with holdout')
 # sample(mainUnsup, 'unsupervised delta testing')
 # sample(mainUnsup, 'accuracy')
+
