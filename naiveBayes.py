@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 from collections import defaultdict
 
-SPLIT_RATIO = 0.8  # holdout ratio
+SPLIT_RATIO = 0.8  # holdout ratio (according to Pareto principle)
 ITERATIONS = 5  # iterations for unsupervised NB
 
 DATASET1 = '2018S1-proj1_data/breast-cancer-dos.csv'
@@ -335,8 +335,8 @@ def mainUnsup(data):
 
 # print(mainUnsup(DATASET3))
 
-# sample(mainQuestion3, 'no holdout')
-sample(mainSup, 'with holdout')
+sample(mainQuestion3, 'no holdout')
+# sample(mainSup, 'with holdout')
 # sample(mainUnsup, 'unsupervised delta testing')
 # sample(mainUnsup, 'accuracy')
 
