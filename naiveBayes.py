@@ -155,13 +155,14 @@ def trainUnsup(df):
 
     # print('priorCounts', priorCounts)
     # print('priorProb', priorCounts / N)
-    #print('INIT\n', cleanTrain)
+    # print('INIT\n', cleanTrain)
+
 
     return cleanTrain, classList, priorCounts
 
 ###############################################################################
 
-def predictUnsup(cleanTrain, classes, priorCounts):
+def predictUnsup(cleanTrain, classes, priorCounts, trueClass):
     '''
     returns predicted classes and final class distributions
     '''
@@ -170,6 +171,18 @@ def predictUnsup(cleanTrain, classes, priorCounts):
     priorProb = priorCounts / N
 
     for j in range(ITERATIONS):
+
+        predictedClasses = []
+        # extract final predictions (most likely class)
+        for i, instance in cleanTrain.iterrows():
+            currentMax = ['null', 0]
+
+            for idx, c in enumerate(classes):
+                if instance[c] > currentMax[1]: currentMax = [c, instance[c]]
+            predictedClasses.append(currentMax[0])
+
+        evaluateUnsup(trueClass, predictedClasses, classes, True)
+
         posteriorProb = defaultdict(lambda: 0)
 
         # generate attribute value|class pair probabilities
@@ -203,16 +216,7 @@ def predictUnsup(cleanTrain, classes, priorCounts):
         for idx,c in enumerate(classes): priorCounts[idx] = cleanTrain[c].sum()
         priorProb = priorCounts / N
 
-    #print(cleanTrain)
 
-    predictedClasses = []
-    # extract final predictions (most likely class)
-    for i, instance in cleanTrain.iterrows():
-        currentMax = ['null', 0]
-
-        for idx, c in enumerate(classes):
-            if instance[c] > currentMax[1]: currentMax = [c, instance[c]]
-        predictedClasses.append(currentMax[0])
 
     return predictedClasses, cleanTrain
 
@@ -253,7 +257,6 @@ def evaluateUnsup(trueClass, predictedClasses, classes, flag):
     maxSum = 0
     totalSum = confusionMatrix.values.sum()
     # sum rows or columns???
-    confusionMatrix = confusionMatrix.transpose()  # fix accuracy calc
     for c in confusionMatrix.columns: maxSum += confusionMatrix[c].max()
 
     return maxSum / totalSum
@@ -323,7 +326,7 @@ def mainUnsup(data):
     df = pd.read_csv(data, header = None)
     trueClass = df.iloc[:,-1].tolist()  # extract true classes
     cleanTrain, classes, priorCounts = trainUnsup(df)
-    predictedClasses, finalDf = predictUnsup(cleanTrain, classes, priorCounts)
+    predictedClasses, finalDf = predictUnsup(cleanTrain, classes, priorCounts, trueClass)
     accuracyUnsup = evaluateUnsup(trueClass, predictedClasses, classes, True)
     deltaAvg = deltaQuestion6(finalDf, predictedClasses)
 
@@ -340,4 +343,4 @@ def mainUnsup(data):
 # sample(mainUnsup, 'unsupervised delta testing')
 # sample(mainUnsup, 'accuracy')
 
-print(mainUnsup(DATASET1))
+print(mainUnsup(DATASET3))
