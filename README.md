@@ -11,9 +11,9 @@ include
 - **preprocess()**, to opens the data file, and converts it into a usable information
 - **train()**, calculate counts (or probabilities) from the training data to build model
 - **predict()**, using model from train() to predict class for the test data
-- **evaluate()**, output the evaluation metric, or sufficient information to recalculate by hand  
+- **evaluate()**, output the evaluation metric, or sufficient information to recalculate by hand
 
-![naivebayes](naivebayes.jpg)
+![naivebayes](nb.jpg)
 
 ## Data
 1. **breast-cancer.csv**, having 286 instances, 9 nominal attributes (some of which contain

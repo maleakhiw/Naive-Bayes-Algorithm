@@ -1,7 +1,5 @@
-# Chirag Rao Sahib      : 836011
-# Maleakhi Agung Wijaya : 784091
-
-###############################################################################
+# Author: Chirag Rao Sahib (836011) & Maleakhi Agung Wijaya (784091)
+# Date: 28/03/2018
 
 import numpy as np
 import pandas as pd
@@ -9,90 +7,113 @@ from collections import defaultdict
 
 SPLIT_RATIO = 0.8  # holdout ratio (according to Pareto principle)
 ITERATIONS = 10  # iterations for unsupervised NB
+EPSILON = 10**(-6)
 
 DATASET1 = '2018S1-proj1_data/breast-cancer-dos.csv'
 DATASET2 = '2018S1-proj1_data/car-dos.csv'
 DATASET3 = '2018S1-proj1_data/hypothyroid-dos.csv'
 DATASET4 = '2018S1-proj1_data/mushroom-dos.csv'
 DATASETS = [DATASET1, DATASET2, DATASET3, DATASET4]
-SAMPLE = '2018S1-proj1_data/sample.csv'  # example dataset
+SAMPLE = '2018S1-proj1_data/sample.csv'  # example dataset from lecture notes
 
-###############################################################################
+########################PREPROCESS-SUPERVISED###################################
 
+'''
+Helper function to create dictionary key given a string
+@param lst = list of string to combined
+@return dictionary key for probability (i.e. 0|mild|flu = (0==mild given flu))
+'''
 def createKey(lst):
-    '''
-    helper function to create dict key given a list
-    '''
     return '|'.join(str(i) for i in lst)
 
-###############################################################################
-
+'''
+Random generator
+@param length = length of the random array
+@return array containing random number that sums to 1
+'''
 def randDistGen(length):
-    '''
-    returns numpy array of 'length' random probabilities that sum to 1
-    '''
     dist = np.random.random(length)
     return dist / dist.sum()
 
-###############################################################################
-
-def preprocessSup(data):
-    '''
-    read csv using pandas and partition data as per holdout
-    '''
+'''
+Preprocessing for supervised to split the data into a training test split
+@param data = dataset
+@param flag = True = no split, False = split
+'''
+def preprocessSup(data, flag=False):
     dataFrame = pd.read_csv(data, header = None)
-    split = np.random.rand(len(dataFrame)) < SPLIT_RATIO
-    train = dataFrame[split]
-    test = dataFrame[~split]
+
+    if (flag == False):
+        # Split according to the splitting ratio
+        split = np.random.rand(len(dataFrame)) < SPLIT_RATIO
+
+        train = dataFrame[split]
+        test = dataFrame[~split]
+    else:
+        train = dataFrame
+        test = dataFrame
 
     return train, test
 
-###############################################################################
+#############################TRAIN-SUPERVISED###################################
 
+'''
+Create supervised Naive Bayes model by returning prior and posterior probability
+@param trainSet = data that are used for training to generate model
+@return priobProb, posteriorProb = probability counter
+'''
 def trainSup(trainSet):
-    '''
-    returns prior and posterior probabilities
-    '''
     priorCounts = trainSet.iloc[:,-1].value_counts()
     priorProb = priorCounts / trainSet.shape[0]
     attribCount = trainSet.shape[1]
     posteriorProb = {}
 
-    for attrib in range(attribCount - 1):  # class is not an attribute
-        # generate list of unique attribute values and disregard ?
+    # Iterating over all columns except for the class column
+    for attrib in range(attribCount - 1):
+        # Generate list of unique attribute values and disregard ?
         attribValues = list(trainSet[attrib].unique())
         if ('?' in attribValues): attribValues.remove('?')
 
-        # calculate posterior probabilities
+        # Calculate posterior probabilities
         for c in priorCounts.index:
             for val in attribValues:
                 # first filter by class then by attribute value
                 filterClass = trainSet[trainSet.iloc[:,-1] == c]
                 filterClassVal = filterClass[filterClass[attrib] == val]
+
+                # Generate key for dictionary (0|severe|flu means (column 0=severe|flu)
                 key = createKey([attrib, val, c])
                 posteriorProb[key] = filterClassVal.shape[0] / priorCounts[c]
 
+    # Iterate every element in dictionary and perform epsilon smoothing
+    for key, value in posteriorProb.items():
+        if (value == 0):
+            posteriorProb[key] = EPSILON
+
     return priorProb, posteriorProb
 
-###############################################################################
+###########################PREDICT-SUPERVISED###################################
 
+'''
+Generate prediction for the testSet
+@param testSet = test data that will be classified
+@param priorProb, posteriorProb = model
+@return predictedClasses = array containing prediction made by model
+'''
 def predictSup(testSet, priorProb, posteriorProb):
-    '''
-    returns predicted class given test data
-    '''
-    cleanTest = testSet.drop(testSet.columns[-1], axis=1)  # drop classes
+    cleanTest = testSet.drop(testSet.columns[-1], axis=1)
     predictedClasses = []
 
     for i, instance in cleanTest.iterrows():
-        currentMax = ['null', 0]  # track most probable class
+        currentMax = ['null', -float("inf")]  # track most probable class
 
         for c in priorProb.index:
             # maximum likelihood estimation of each instance
-            prob = priorProb[c]
+            prob = np.log(priorProb[c])
 
             for attrib, val in enumerate(list(instance)):
                 key = createKey([attrib, val, c])
-                if key in posteriorProb: prob *= posteriorProb[key]
+                if key in posteriorProb: prob += np.log(posteriorProb[key])
 
             if prob > currentMax[1]: currentMax = [c, prob]
 
@@ -101,12 +122,15 @@ def predictSup(testSet, priorProb, posteriorProb):
 
     return predictedClasses
 
-###############################################################################
+##########################EVALUATE-SUPERVISED###################################
 
+'''
+Simple accuracy measure of the supervised context
+@param testSet = array of test result
+@param predictedClasses = array of predicted result
+@return accuract = (TP+TN) / (TP+TN+FP+FN)
+'''
 def evaluateSup(testSet, predictedClasses):
-    '''
-    simple accuracy of supervised NB
-    '''
     correct = 0
     trueClass = testSet.iloc[:,-1].tolist()
 
@@ -119,113 +143,14 @@ def evaluateSup(testSet, predictedClasses):
 
     return correct / len(trueClass)
 
-###############################################################################
-
-def trainUnsup(df):
-    '''
-    initialise instances with random (non-uniform) class distributions
-    '''
-    classList = set(df.iloc[:,-1])  # extract unique classes
-    classCount = len(classList)
-    cleanTrain = df.drop(df.columns[-1], axis=1)  # drop class col
-    N = cleanTrain.shape[0]  # instance count
-    priorCounts = float()  #initialise prior
-    randoms = []
-
-    # initialise class probabilities as float
-    for c in classList: cleanTrain[c] = float()
-
-    # generate N random probability distributions, while summing for prior
-    # store generated probabilities in dataframe
-    for i in range(N):
-        randoms.append(randDistGen(classCount))
-        priorCounts += randoms[i]
-
-        for idx, c in enumerate(classList):
-            cleanTrain.at[i, c] = randoms[i][idx]
-
-    # slide example
-    # randoms2 = [[ 0.4,  0.6],
-    #             [ 0.7,  0.3],
-    #             [ 0.9,  0.1],
-    #             [ 0.2,  0.8],
-    #             [ 0.6,  0.4]]
-    # randoms = randoms2
-    # priorCounts= np.array([2.8, 2.2])
-
-    # print('priorCounts', priorCounts)
-    # print('priorProb', priorCounts / N)
-    # print('INIT\n', cleanTrain)
-
-
-    return cleanTrain, classList, priorCounts
-
-###############################################################################
-
-def predictUnsup(cleanTrain, classes, priorCounts, trueClass):
-    '''
-    returns predicted classes and final class distributions
-    '''
-    N = cleanTrain.shape[0]  # instance count
-    attribCount = cleanTrain.shape[1] - len(classes)
-    priorProb = priorCounts / N
-
-    for j in range(ITERATIONS):
-
-        predictedClasses = []
-        # extract final predictions (most likely class)
-        for i, instance in cleanTrain.iterrows():
-            currentMax = ['null', 0]
-
-            for idx, c in enumerate(classes):
-                if instance[c] > currentMax[1]: currentMax = [c, instance[c]]
-            predictedClasses.append(currentMax[0])
-
-        evaluateUnsup(trueClass, predictedClasses, classes, True)
-
-        posteriorProb = defaultdict(lambda: 0)
-
-        # generate attribute value|class pair probabilities
-        for attrib in range(attribCount) :
-            attribValues = list(cleanTrain[attrib].unique())
-            if ('?' in attribValues): attribValues.remove('?')
-
-            for idx, c in enumerate(classes):
-                for val in attribValues:
-                    key = createKey([attrib, val, c])
-                    filterClassVal = cleanTrain[cleanTrain[attrib] == val]
-                    posteriorProb[key] += filterClassVal[c].sum() / priorCounts[idx]
-
-        # maximum likelihood estimation of each instance
-        for i, instance in cleanTrain.iterrows():
-            classSum = 0.0
-
-            for idx, c in enumerate(classes):
-                tmpProb = priorProb[idx]
-
-                for attrib, val in enumerate(list(instance)):
-                    key = createKey([attrib, val, c])
-                    if key in posteriorProb: tmpProb *= posteriorProb[key]
-                classSum += tmpProb
-                cleanTrain.at[i, c] = tmpProb
-
-            # normalise posterior
-            for c in classes: cleanTrain.at[i, c] /= classSum
-
-        # recalculate prior
-        for idx,c in enumerate(classes): priorCounts[idx] = cleanTrain[c].sum()
-        priorProb = priorCounts / N
-
-
-
-    return predictedClasses, cleanTrain
-
-###############################################################################
-
-def evaluateUnsup(trueClass, predictedClasses, classes, flag):
-    '''
-    builds a confusion matrix for unsupervised evaluation
-    '''
+'''
+Create confusion matrix for supervised and unsupervised
+@param trueClass = true class result array
+@param predictedClasses = prediction classes array
+@param classes = possible unique classes
+@return confusionMatrix = confusion matrix
+'''
+def createConfusionMatrix(trueClass, predictedClasses, classes):
     if len(trueClass) != len(predictedClasses):
         print('Error: Class length')
         return
@@ -251,51 +176,240 @@ def evaluateUnsup(trueClass, predictedClasses, classes, flag):
     confusionMatrix.columns = predictedCol
     confusionMatrix.index = actualRow
 
-    if flag: print(confusionMatrix)
+    return(confusionMatrix)
 
-    # calculate unsupervised accuracy
+########################PREPROCESS-UNSUPERVISED#################################
+
+'''
+Preprocessing for unsupervised no split
+@param data = dataset
+@return dataFrame = pandas dataFrame consisting of data from the csv file
+@return unsupervisedDataFrame = pandas dataFrame with class eliminated and probability added
+'''
+def preprocessUnsup(data):
+    dataFrame = pd.read_csv(data, header = None)
+    unsupervisedDataFrame = initialiseUnsup(dataFrame)
+
+    return (dataFrame, unsupervisedDataFrame)
+
+'''
+Initialise the dataset with random distribution
+@param dataset = dataframe of the dataset
+@return unsupervisedDataset = dataset that we have added random distribution
+'''
+def initialiseUnsup(dataset):
+        rowNumber = dataset.shape[0]
+        classColumn = list(dataset[dataset.shape[1] - 1].unique())
+        classNumber = len(classColumn)
+        unsupervisedDataset = dataset.drop(dataset.shape[1] - 1, axis=1) # drop the last column
+
+        # sample randomly
+        sampleMatrix = np.zeros((rowNumber, classNumber))
+        for i in range(rowNumber):
+            samples = randDistGen(classNumber)
+            sampleMatrix[i] = samples
+
+        # Add a column to the dataset according to random distribution (initialisation phase)
+        rowInstance = unsupervisedDataset.shape[0]
+        for c in classColumn:
+            unsupervisedDataset[c] = [0 for i in range(rowInstance)]
+
+        matrixCounter = 0
+        # Iterate through the matrix and assign to the dataframe
+        for index, row in unsupervisedDataset.iterrows():
+            unsupervisedDataset.loc[index, -classNumber:] = sampleMatrix[matrixCounter]
+            matrixCounter += 1
+
+        return(unsupervisedDataset)
+
+
+#############################TRAIN-UNSUPERVISED#################################
+
+
+'''
+This function should build an unsupervised NB model and return a dictionary of prior and posterior probability
+@param classColumn = possible class name (weak unsupervised model)
+@param dataset = data that are used to create the unsupervised NB classifier (format after running initialiseUnsup function)
+@return priorProb = dictionary describing prior probability of the class in training data
+@return posteriorProb = dictionary of dictionaries describing posterior probability
+'''
+def trainUnsup(classColumn, dataset):
+    classCount = len(classColumn)
+    attribColumn = list(range(dataset.shape[1] - classCount))
+
+    # Create a dictionary of prior probability
+    priorProb = {}
+    for c in classColumn:
+        priorProb[c] = dataset[c].sum()
+
+    # make prior to a probability
+    total_sum = sum(priorProb.values())
+    for c in classColumn:
+        priorProb[c] /= total_sum
+
+    # Create posterior
+    posteriorProb = {}
+
+    # Setup the dictionary component
+    for col in attribColumn:
+        posteriorProb[col] = {}
+        for c in classColumn:
+            posteriorProb[col][c] = {}
+            for uc in dataset[col].unique():
+                posteriorProb[col][c][uc] = 0
+
+    # Now use the training data to perform count calculation
+    for index, row in dataset.iterrows():
+        for col in attribColumn:
+            for c in classColumn:
+                posteriorProb[col][c][row[col]] += row[c]
+
+    # After we finish the count calculation, perform probability calculation
+    # Now calculate the posterior probability
+    for col in attribColumn:
+        for c in classColumn:
+            sumInstance = sum(posteriorProb[col][c].values())
+            for uc in dataset[col].unique():
+                posteriorProb[col][c][uc] /= sumInstance
+
+                # Perform epsilon smoothing
+                if (posteriorProb[col][c][uc] == 0):
+                    posteriorProb[col][c][uc] = EPSILON
+
+    # Return the dictionary of prior probability and posterior probability
+    return (priorProb, posteriorProb)
+
+###########################PREDICT-UNSUPERVISED#################################
+
+
+'''
+This function should predict the class for a set of instances, based on a trained model
+@param classColumn = possible class name (weak unsupervised model)
+@param dataset = data that are used to calculate prediction
+@param priorProb = dictionary of probability counter
+@param posteriorProb = dictionary of probability counter
+@return testClass = the class predicted by the naive bayes classifier. The predict class will change the structure of dataset to be used for the next iteration.
+'''
+def predictUnsup(classColumn, dataset, priorProb, posteriorProb):
+    classCount = len(classColumn)
+    testClass = [] # used to capture test result
+    attribColumn = list(range(dataset.shape[1] - classCount))
+
+    # Get the answer for every test instance
+    for index, row in dataset.iterrows():
+        # Initiate dictionary capturing the values calculated by naive bayes model
+        testValue = {}
+        for c in classColumn:
+            testValue[c] = 0
+
+        # Calculate for each class using the naive bayes model (log model for multiplication)
+        for c in classColumn:
+            testValue[c] = np.log(priorProb[c])
+            for col in attribColumn:
+                testValue[c] += np.log(posteriorProb[col][c][row[col]])
+
+        # After calculating all of the possible class, we want to choose the maximum
+        maximumClass = classColumn[0]
+        maximumValue = testValue[maximumClass]
+        for key, value in testValue.items():
+            if (value > maximumValue):
+                maximumValue = value
+                maximumClass = key
+
+        # Append result to be returned
+        testClass.append(maximumClass)
+
+        # Change the dataset structure for the instance to prepare for the next iteration
+        # First take the exponent of that to get the real probability calculation value
+        for c in classColumn:
+            testValue[c] = np.exp(testValue[c])
+
+        # Calculate the new probability
+        denominatorNew = sum(testValue.values())
+
+        for c in classColumn:
+            dataset.loc[index, c] = testValue[c] / denominatorNew
+
+    # Return the classifier for the class
+    return testClass
+
+#########################EVALUATE-UNSUPERVISED##################################
+
+'''
+Used to calculate the accuracy of the unsupervised model
+@param confusionMatrix = confusion matrix of the unsupervised result
+@result accuracy of the unsupervised taking into account class swapping
+'''
+def evaluateUnsup(confusionMatrix):
     maxSum = 0
     totalSum = confusionMatrix.values.sum()
-    # sum rows or columns???
+
+    # Calculate sum of the highest of each column
     for c in confusionMatrix.columns: maxSum += confusionMatrix[c].max()
 
-    return maxSum / totalSum
+    return (maxSum/totalSum)
 
-###############################################################################
+##################################MAIN##########################################
 
-def sample(func, desc):
-    '''
-    runs given function 10 times and takes average of measure
-    '''
+'''
+Used mainly in holdout method to average 10 holdout
+@param func = function that will be run
+@param desc = description of experiment
+@param flag = if true not split else split (default = split)
+@param flagPrint = true print, false otherwise
+'''
+def sampleExperiment(func, desc, flag, flagPrint):
     RUNS = 10
     print(desc)  # description of experiment
 
     for d in DATASETS:
         avgMeasure = 0
-        for i in range(RUNS): avgMeasure += func(d)
+        for i in range(RUNS): avgMeasure += func(d, flag, flagPrint)
         print('{} | Avg. Measure: {}'.format(d, avgMeasure / RUNS))
 
-###############################################################################
+'''
+Main function for supervised to be run across a dataset
+@param data = dataset used to run
+@param flag = if true not split else split (default = split)
+@param flagPrint = true print, false otherwise
+@return accuracy = accuracy of the data
+'''
+def mainSup(data, flag=False, flagPrint=True):
+    # If true (don't split), false split
+    trainSet, testSet = preprocessSup(data, flag)
 
-def mainQuestion3(data):
-    '''
-    test on training data for Question 3 (no holdout, supervised)
-    '''
-    df = pd.read_csv(data, header = None)
-    priorProb, posteriorProb = trainSup(df)
-    predictedClasses = predictSup(df, priorProb, posteriorProb)
-    accuracy = evaluateSup(df, predictedClasses)
-    #print('Dataset: {}, Accuracy: {}'.format(data, accuracy))
+    priorProb, posteriorProb = trainSup(trainSet)
+    predictedClasses = predictSup(testSet, priorProb, posteriorProb)
+    accuracy = evaluateSup(testSet, predictedClasses)
+    confusionMatrix = createConfusionMatrix(testSet.iloc[:,-1].tolist(), predictedClasses, testSet.iloc[:, -1].unique())
 
+    if (flagPrint):
+        display(confusionMatrix)
+        print("\nThe accuracy for the dataset is {}.\n\n".format(accuracy))
+
+    # Return accuracy
     return accuracy
 
-###############################################################################
+'''
+Used to answer question 3, using holdout and no holdout
+'''
+def mainQuestion3():
+    # Using holdout
+    sampleExperiment(mainSup, "Using holdout, averaged over 10 runs", False, False)
 
+    print("\n")
+
+    # Using no holdout
+    sampleExperiment(mainSup, "Training in test data", True, False)
+
+'''
+Calculates how far away probabilistic estimate of true class is from 1.
+Assumes probabilistic estimate of true class = highest probability of all classes due to class 'swapping'
+@param df = dataframe containing the data with the probability columns
+@param predict = prediction (highest value probability, see our assumption above)
+@return average = delta average
+'''
 def deltaQuestion6(df, predict):
-    '''
-    Calculates how far away probabilistic estimate of true class is from 1.
-    Assumes probabilistic estimate of true class = highest probability of all classes due to class 'swapping'
-    '''
     deltaSum = 0
 
     # difference (probability) between each predicted class and 1
@@ -303,44 +417,36 @@ def deltaQuestion6(df, predict):
 
     return deltaSum / df.shape[0]
 
-###############################################################################
-
-def mainSup(data):
-    '''
-    execute supervised NB across 'data'
-    '''
-    trainSet, testSet = preprocessSup(data)
-    priorProb, posteriorProb = trainSup(trainSet)
-    predictedClasses = predictSup(testSet, priorProb, posteriorProb)
-    accuracy = evaluateSup(testSet, predictedClasses)
-    #print('Dataset: {}, Accuracy: {}'.format(data, accuracy))
-
-    return accuracy
-
-###############################################################################
-
-def mainUnsup(data):
+'''
+Execute unsupervised, will print the confusion matrix
+@param data = number of data
+@param iteration = number of iteration
+@return accuracy = accuracy based on evaluateUnsup
+'''
+def mainUnsup(data, iteration):
     '''
     execute unsupervised NB across 'data'
     '''
-    df = pd.read_csv(data, header = None)
+    datas = preprocessUnsup(data)
+    df = datas[0]
+    unsupervisedDataFrame = datas[1]
     trueClass = df.iloc[:,-1].tolist()  # extract true classes
-    cleanTrain, classes, priorCounts = trainUnsup(df)
-    predictedClasses, finalDf = predictUnsup(cleanTrain, classes, priorCounts, trueClass)
-    accuracyUnsup = evaluateUnsup(trueClass, predictedClasses, classes, True)
-    deltaAvg = deltaQuestion6(finalDf, predictedClasses)
 
-    print('delta average', deltaAvg)
+    # Iterate iteration number of times changing the unsupervisedDataFrame
+    for i in range(iteration):
+        print("Iteration {}".format(i+1))
+        prior, posterior = trainUnsup(list(set(trueClass)), unsupervisedDataFrame)
+        oldUnsupervisedDf = unsupervisedDataFrame.copy(deep=True)
+        predictedClasses = predictUnsup(list(set(trueClass)), unsupervisedDataFrame, prior, posterior)
+        confusionMatrix = createConfusionMatrix(trueClass, predictedClasses, list(set(trueClass)))
+        accuracyUnsup = evaluateUnsup(confusionMatrix)
+        display(confusionMatrix)
+        print("The accuracy is {}.".format(accuracyUnsup))
+
+        # Delta
+        deltaAverage = deltaQuestion6(oldUnsupervisedDf, predictedClasses)
+        print("The delta average is {}".format(deltaAverage))
+        print("\n\n")
+
 
     return accuracyUnsup
-
-###############################################################################
-
-# print(mainUnsup(DATASET3))
-
-# sample(mainQuestion3, 'no holdout')
-# sample(mainSup, 'with holdout')
-# sample(mainUnsup, 'unsupervised delta testing')
-# sample(mainUnsup, 'accuracy')
-
-print(mainUnsup(DATASET3))
