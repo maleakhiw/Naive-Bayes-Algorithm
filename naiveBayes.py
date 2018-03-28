@@ -44,6 +44,18 @@ def randDistGen(length):
 ###############################################################################
 
 '''
+class distribution of each dataset
+'''
+def classDist():
+    for d in DATASETS:
+        df = pd.read_csv(d, header = None)
+        print('data:', d)
+        print(df.iloc[:,-1].value_counts())
+        print('\n')
+
+###############################################################################
+
+'''
 Preprocessing for supervised to split the data into training/test
 @param data = dataset
 @param flag = True = no split, False = split
@@ -467,6 +479,9 @@ def mainUnsup(data, iteration):
 
 ###############################################################################
 
-mainSup(DATASET3, False, True)
+# mainSup(DATASET3, False, True)
 
-mainUnsup(DATASET3, 10)
+# mainUnsup(DATASET3, 10)
+
+
+classDist()
