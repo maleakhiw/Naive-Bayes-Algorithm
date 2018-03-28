@@ -484,4 +484,6 @@ def mainUnsup(data, iteration):
 # mainUnsup(DATASET3, 10)
 
 
-classDist()
+# classDist()
+
+mainQuestion3()
